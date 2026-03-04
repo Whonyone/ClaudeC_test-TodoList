@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getTodos, createTodo, toggleTodo, deleteTodo } from '../api/todoApi';
+import { PRIORITY_ORDER } from '../constants/todo';
+import TodoItem from '../components/TodoItem';
 import styles from './TodoPage.module.css';
 
-const PRIORITY_LABEL = { high: '높음', medium: '보통', low: '낮음' };
-const PRIORITY_COLOR = { high: '#ef4444', medium: '#f59e0b', low: '#6b7280' };
-const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const BUILTIN_TABS = ['전체', '우선순위'];
 
 const EMPTY_FORM = {
@@ -26,6 +25,7 @@ export default function TodoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('전체');
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   const loadTodos = useCallback(async () => {
     try {
@@ -57,10 +57,11 @@ export default function TodoPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!form.title.trim()) return;
+    const trimmedTitle = form.title.trim();
+    if (!trimmedTitle) return;
     setSubmitting(true);
     try {
-      await createTodo({ ...form, userId: user.id });
+      await createTodo({ ...form, title: trimmedTitle, userId: user.id });
       setForm(EMPTY_FORM);
       setShowForm(false);
       await loadTodos();
@@ -80,12 +81,18 @@ export default function TodoPage() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDeleteRequest = (todo) => {
+    setPendingDelete(todo);
+  };
+
+  const handleDeleteConfirm = async () => {
     try {
-      await deleteTodo(id);
+      await deleteTodo(pendingDelete.id);
+      setPendingDelete(null);
       await loadTodos();
     } catch (err) {
       setError(err.message);
+      setPendingDelete(null);
     }
   };
 
@@ -113,6 +120,24 @@ export default function TodoPage() {
 
   return (
     <div className={styles.page}>
+      {pendingDelete && (
+        <div className={styles.confirmOverlay}>
+          <div className={styles.confirmBox}>
+            <p className={styles.confirmText}>
+              <strong>'{pendingDelete.title}'</strong>을 삭제합니다.
+            </p>
+            <div className={styles.confirmRow}>
+              <button className={styles.confirmDeleteBtn} onClick={handleDeleteConfirm}>
+                삭제
+              </button>
+              <button className={styles.confirmCancelBtn} onClick={() => setPendingDelete(null)}>
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className={styles.header}>
         <h1 className={styles.headerTitle}>내 할 일</h1>
         <div className={styles.headerRight}>
@@ -125,9 +150,12 @@ export default function TodoPage() {
 
       <main className={styles.main}>
         {error && (
-          <p className={styles.error} onClick={() => setError('')}>
-            {error} (클릭해서 닫기)
-          </p>
+          <div className={styles.error}>
+            <span>{error}</span>
+            <button className={styles.errorClose} onClick={() => setError('')} aria-label="닫기">
+              ×
+            </button>
+          </div>
         )}
 
         <div className={styles.addSection}>
@@ -239,7 +267,7 @@ export default function TodoPage() {
                       key={todo.id}
                       todo={todo}
                       onToggle={handleToggle}
-                      onDelete={handleDelete}
+                      onDeleteRequest={handleDeleteRequest}
                     />
                   ))}
                 </ul>
@@ -257,7 +285,7 @@ export default function TodoPage() {
                       key={todo.id}
                       todo={todo}
                       onToggle={handleToggle}
-                      onDelete={handleDelete}
+                      onDeleteRequest={handleDeleteRequest}
                     />
                   ))}
                 </ul>
@@ -267,46 +295,5 @@ export default function TodoPage() {
         )}
       </main>
     </div>
-  );
-}
-
-function TodoItem({ todo, onToggle, onDelete }) {
-  return (
-    <li className={`${styles.item} ${todo.completed ? styles.itemDone : ''}`}>
-      <button
-        className={styles.checkbox}
-        onClick={() => onToggle(todo)}
-        aria-label={todo.completed ? '완료 취소' : '완료'}
-      >
-        {todo.completed ? '✓' : ''}
-      </button>
-      <div className={styles.itemBody}>
-        <span className={styles.itemTitle}>{todo.title}</span>
-        {todo.detail && <span className={styles.itemDetail}>{todo.detail}</span>}
-        <div className={styles.itemMeta}>
-          {todo.category && (
-            <span className={styles.categoryBadge}>{todo.category}</span>
-          )}
-          <span
-            className={styles.priority}
-            style={{ color: PRIORITY_COLOR[todo.priority] }}
-          >
-            {PRIORITY_LABEL[todo.priority]}
-          </span>
-          {todo.duedate && (
-            <span className={styles.due}>
-              {todo.duedate} {todo.duetime}
-            </span>
-          )}
-        </div>
-      </div>
-      <button
-        className={styles.deleteBtn}
-        onClick={() => onDelete(todo.id)}
-        aria-label="삭제"
-      >
-        ✕
-      </button>
-    </li>
   );
 }

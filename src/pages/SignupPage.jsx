@@ -51,6 +51,7 @@ export default function SignupPage() {
               value={form.username}
               onChange={handleChange}
               placeholder="아이디를 입력하세요"
+              maxLength={12}
               required
               autoFocus
             />
@@ -79,7 +80,12 @@ export default function SignupPage() {
               required
             />
           </div>
-          {error && <p className={styles.error}>{error}</p>}
+          {error && (
+            <div className={styles.error}>
+              <span>{error}</span>
+              <button className={styles.errorClose} onClick={() => setError('')} aria-label="닫기">×</button>
+            </div>
+          )}
           <button type="submit" className={styles.button} disabled={loading}>
             {loading ? '가입 중...' : '회원가입'}
           </button>

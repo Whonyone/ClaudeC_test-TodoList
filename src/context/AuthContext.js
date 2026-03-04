@@ -13,8 +13,9 @@ export function AuthProvider({ children }) {
   });
 
   const loginUser = (userData) => {
-    setUser(userData);
-    localStorage.setItem('todo-user', JSON.stringify(userData));
+    const { password: _p, ...safeData } = userData;
+    setUser(safeData);
+    localStorage.setItem('todo-user', JSON.stringify(safeData));
   };
 
   const logoutUser = () => {
@@ -30,5 +31,9 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const ctx = useContext(AuthContext);
+  if (ctx === null) {
+    throw new Error('useAuth는 AuthProvider 내부에서만 사용할 수 있습니다.');
+  }
+  return ctx;
 }

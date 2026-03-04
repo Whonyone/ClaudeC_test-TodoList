@@ -65,7 +65,7 @@ export async function createTodo({
 // PUT /todos/:id - 완료 상태 토글
 export async function toggleTodo(id, completed) {
   const response = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ completed }),
   });
