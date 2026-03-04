@@ -5,6 +5,8 @@ import styles from './TodoPage.module.css';
 
 const PRIORITY_LABEL = { high: '높음', medium: '보통', low: '낮음' };
 const PRIORITY_COLOR = { high: '#ef4444', medium: '#f59e0b', low: '#6b7280' };
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+const BUILTIN_TABS = ['전체', '우선순위'];
 
 const EMPTY_FORM = {
   title: '',
@@ -27,7 +29,7 @@ export default function TodoPage() {
 
   const loadTodos = useCallback(async () => {
     try {
-      const data = await getTodos({ userId: user.id, sortByPriority: true });
+      const data = await getTodos({ userId: user.id });
       setTodos(data);
     } catch (err) {
       setError(err.message);
@@ -40,6 +42,15 @@ export default function TodoPage() {
     loadTodos();
   }, [loadTodos]);
 
+  // 브라우저 탭 복귀 시 자동 갱신
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadTodos();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [loadTodos]);
+
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -49,10 +60,10 @@ export default function TodoPage() {
     if (!form.title.trim()) return;
     setSubmitting(true);
     try {
-      const newTodo = await createTodo({ ...form, userId: user.id });
-      setTodos((prev) => [...prev, newTodo]);
+      await createTodo({ ...form, userId: user.id });
       setForm(EMPTY_FORM);
       setShowForm(false);
+      await loadTodos();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,8 +73,8 @@ export default function TodoPage() {
 
   const handleToggle = async (todo) => {
     try {
-      const updated = await toggleTodo(todo.id, !todo.completed);
-      setTodos((prev) => prev.map((t) => (t.id === todo.id ? updated : t)));
+      await toggleTodo(todo.id, !todo.completed);
+      await loadTodos();
     } catch (err) {
       setError(err.message);
     }
@@ -72,19 +83,31 @@ export default function TodoPage() {
   const handleDelete = async (id) => {
     try {
       await deleteTodo(id);
-      setTodos((prev) => prev.filter((t) => t.id !== id));
+      await loadTodos();
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const categories = ['전체', ...Array.from(new Set(todos.map((t) => t.category).filter(Boolean)))];
+  const userCategories = Array.from(new Set(todos.map((t) => t.category).filter(Boolean)));
+  const categories = [...BUILTIN_TABS, ...userCategories];
 
-  const filteredTodos =
-    selectedCategory === '전체'
-      ? todos
-      : todos.filter((t) => t.category === selectedCategory);
+  const getFilteredTodos = () => {
+    const byDate = (arr) =>
+      [...arr].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const byPriority = (arr) =>
+      [...arr].sort(
+        (a, b) =>
+          (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1) ||
+          new Date(b.createdAt) - new Date(a.createdAt)
+      );
 
+    if (selectedCategory === '전체') return byDate(todos);
+    if (selectedCategory === '우선순위') return byPriority(todos);
+    return byDate(todos.filter((t) => t.category === selectedCategory));
+  };
+
+  const filteredTodos = getFilteredTodos();
   const pending = filteredTodos.filter((t) => !t.completed);
   const completed = filteredTodos.filter((t) => t.completed);
 
@@ -135,7 +158,7 @@ export default function TodoPage() {
                 list="category-suggestions"
               />
               <datalist id="category-suggestions">
-                {categories.filter((c) => c !== '전체').map((c) => (
+                {userCategories.map((c) => (
                   <option key={c} value={c} />
                 ))}
               </datalist>
@@ -185,7 +208,7 @@ export default function TodoPage() {
           )}
         </div>
 
-        {!loading && categories.length > 1 && (
+        {!loading && (
           <div className={styles.categoryTabs}>
             {categories.map((cat) => (
               <button
